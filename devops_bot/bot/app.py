@@ -219,7 +219,7 @@ def getRelease(update: Update, context):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(hostname=host, username=username, password=password, port=port)
-    stdin, stdout, stderr = client.exec_command('lsb_release -a')
+    stdin, stdout, stderr = client.exec_command('cat /etc/issue')
     data = stdout.read()
     logging.info(
         'Результат выполнения команды:\n' + str(data))

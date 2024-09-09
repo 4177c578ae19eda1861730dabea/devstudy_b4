@@ -1,0 +1,8 @@
+[gr_bot]
+bot	ansible_host=192.168.255.165
+
+[gr_db]
+db	ansible_host=192.168.255.136
+
+[gr_db-repl]
+db-repl	ansible_host=192.168.255.163

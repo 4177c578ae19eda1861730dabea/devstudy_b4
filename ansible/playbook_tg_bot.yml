@@ -1,0 +1,146 @@
+---
+- name: Install bot
+  hosts: bot
+  tasks:
+  
+  - name: Install packages
+    ansible.builtin.apt:
+      name:
+        - python3
+        - python3-pip
+        - libpq-dev 
+        - gcc
+      update_cache: yes
+  
+  - name: Inslatt lib pip
+    ansible.builtin.pip:
+      name:
+        - psycopg2
+        - paramiko
+        - python-dotenv
+        - python-telegram-bot==13.7
+  
+  - name: Create work dir
+    ansible.builtin.file:
+      path: /bot
+      state: directory
+      mode: '0777'
+
+  - name: Download bot
+    ansible.builtin.get_url:
+      url: https://raw.githubusercontent.com/4177c578ae19eda1861730dabea/devstudy_b4/docker/devops_bot/bot/app.py
+      dest: /bot/app.py
+      mode: '0777'
+  
+  - name: Copy file .env
+    ansible.builtin.copy:
+      src: ./.env
+      dest: /bot/.env
+
+- name: Install pg on db
+  hosts: db
+  tasks:
+
+  - name: Install packages
+    ansible.builtin.apt:
+      name:
+        - postgresql
+        - postgresql-contrib
+      update_cache: yes    
+  
+  - name: Gather the package facts
+    ansible.builtin.package_facts:
+      manager: auto
+
+  - name: Geting postgres version
+    set_fact:
+      pg_installed_ver: '{{ ansible_facts.packages.postgresql[0].version[:2] }}'
+
+  - name: Debug vars
+    ansible.builtin.debug:
+      var: pg_installed_ver
+
+  - name: Copy file config pg
+    ansible.builtin.copy:
+      src: '{{ item }}'
+      dest: /etc/postgresql/{{ pg_installed_ver }}/main/
+      group: postgres
+      mode: '0644'
+      owner: postgres
+    with_items:
+      - ./pg_hba.conf
+      - ./postgresql.conf
+  
+  - name: Create repl_user
+    become_user: postgres
+    ignore_errors: yes
+    ansible.builtin.shell: createuser --replication repl_user
+
+  - name: Set password repl_user
+    become_user: postgres
+    ignore_errors: yes
+    ansible.builtin.shell: psql -c "ALTER USER repl_user WITH PASSWORD 'P@ssw0rd';"
+  
+  - name: Create archive dir
+    ansible.builtin.file:
+      path: /pg_archive
+      state: directory
+      mode: '0777'
+      group: postgres
+      owner: postgres
+
+  - name: Start postgres
+    service:
+      name: postgresql
+      state: restarted
+
+- name: Install pg on db-perl
+  hosts: db-repl
+  tasks:
+
+  - name: Install packages
+    ansible.builtin.apt:
+      name:
+        - postgresql
+        - postgresql-contrib
+      update_cache: yes
+
+  - name: Gather the package facts
+    ansible.builtin.package_facts:
+      manager: auto
+
+  - name: Geting postgres version
+    set_fact:
+      pg_installed_ver: '{{ ansible_facts.packages.postgresql[0].version[:2] }}'
+
+  - name: Debug vars
+    ansible.builtin.debug:
+      var: pg_installed_ver
+
+  - name: Stop postgressql
+    service:
+      name: postgresql
+      state: stopped
+
+
+  - name: Find pg file
+    ansible.builtin.find:
+     paths: /etc/postgresql/{{ pg_installed_ver }}/main/
+    register: files_to_delete
+
+  - name: Remove pg file
+    file:
+      path: "{{ item.path }}"
+      state: absent
+    with_items: "{{ files_to_delete.files }}"
+
+  - name: Start replication
+    become_user: postgresql
+    ansible.builtin.shell:
+      cmd: pg_basebackup -R -h {{ hostvars["db"].ansible_host }} -U repl_user -D /etc/postgresql/{{ pg_installed_ver }}/main
+    environment:
+      pg_repl_user: P@ssw0rd
+
+
+
+

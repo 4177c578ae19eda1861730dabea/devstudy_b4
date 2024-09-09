@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Подгружаем .env
-#load_dotenv()
+load_dotenv()
 
 # Выбираем нужную переменную из .env
 TOKEN = os.getenv('YOUR_BOT_TOKEN')
